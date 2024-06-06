@@ -97,7 +97,7 @@ func respondWithJSON(w http.ResponseWriter, reponseCode int, payload any) {
 }
 
 func (na *NotifyApp) getUsersHandler(w http.ResponseWriter, r *http.Request) {
-	users, err := na.dbConnection.GetUsers()
+	users, err := na.dbConnection.GetUsers(r)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err)
 		return
@@ -121,15 +121,23 @@ func (na *NotifyApp) createUsersHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err = na.dbConnection.CreateUser(types.BirthdayUser{
-		BirthdayUserRequest: user,
-	})
+	birthdayUser := types.BirthdayUser{BirthdayUserRequest: user}
+	err = na.dbConnection.CreateUser(birthdayUser)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	respondWithJSON(w, http.StatusCreated, user)
+	userResponse := types.BirthdayUserResponse{
+		ID: birthdayUser.ID,
+		BirthdayUserBase: types.BirthdayUserBase{
+			FirstName: birthdayUser.FirstName,
+			LastName:  birthdayUser.LastName,
+			Email:     birthdayUser.Email,
+			Birthday:  birthdayUser.Birthday,
+		},
+	}
+	respondWithJSON(w, http.StatusCreated, userResponse)
 }
 
 func (na *NotifyApp) getUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +205,7 @@ func (na *NotifyApp) subscribeToUserHandler(w http.ResponseWriter, r *http.Reque
 func (na *NotifyApp) getBirthdaysHandler(w http.ResponseWriter, r *http.Request) {
 	claims := r.Context().Value(claimsKey).(jwt.MapClaims)
 	subject := claims["sub"].(float64)
-	users, err := na.dbConnection.GetBirthdays(int(subject))
+	users, err := na.dbConnection.GetBirthdays(int(subject), r)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err)
 		return

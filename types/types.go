@@ -2,13 +2,21 @@ package types
 
 import "time"
 
+type BirthdayUserBase struct {
+	FirstName string    `json:"firstName"`
+	LastName  string    `json:"lastName"`
+	Email     string    `json:"email"`
+	Birthday  time.Time `json:"birthday"`
+}
+
 type BirthdayUserRequest struct {
-	FirstName    string    `json:"firstName"`
-	LastName     string    `json:"lastName"`
-	Email        string    `json:"email"`
-	Birthday     time.Time `json:"birthday"`
-	Password     string    `json:"password"`
-	IsSubscribed bool      `json:"isSubscribed"`
+	BirthdayUserBase
+	Password string `json:"password"`
+}
+
+type BirthdayUserResponse struct {
+	ID int `json:"id"`
+	BirthdayUserBase
 }
 
 type BirthdayUser struct {

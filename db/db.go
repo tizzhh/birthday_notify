@@ -3,7 +3,9 @@ package db
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
+	"strconv"
 
 	"birthday/types"
 
@@ -36,10 +38,32 @@ func ConnectToDb(dbHost, dbUser, dbPass, dbName, dbPort, connectionUrl string) (
 	return DataBase{DB: db}, nil
 }
 
-func (db DataBase) GetUsers() ([]types.BirthdayUser, error) {
-	var users []types.BirthdayUser
-	results := db.DB.Find(&users)
-	return users, results.Error
+func Paginate(r *http.Request) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		q := r.URL.Query()
+		page, _ := strconv.Atoi(q.Get("page"))
+		if page <= 0 {
+			page = 1
+		}
+
+		pageSize, _ := strconv.Atoi(q.Get("page_size"))
+		switch {
+		case pageSize > 100:
+			pageSize = 100
+		case pageSize <= 0:
+			pageSize = 10
+		}
+
+		offset := (page - 1) * pageSize
+		return db.Offset(offset).Limit(pageSize)
+	}
+}
+
+func (db DataBase) GetUsers(r *http.Request) ([]types.BirthdayUserResponse, error) {
+	var user types.BirthdayUser
+	var usersResponse []types.BirthdayUserResponse
+	results := db.DB.Model(&user).Scopes(Paginate(r)).Find(&usersResponse)
+	return usersResponse, results.Error
 }
 
 func (db DataBase) CreateUser(user types.BirthdayUser) error {
@@ -63,10 +87,11 @@ func (db DataBase) GetUserByEmail(email string) (types.BirthdayUser, error) {
 	return userCheck, emailCheck.Error
 }
 
-func (db DataBase) GetUser(id int) (types.BirthdayUser, error) {
+func (db DataBase) GetUser(id int) (types.BirthdayUserResponse, error) {
 	var user types.BirthdayUser
-	result := db.DB.First(&user, id)
-	return user, result.Error
+	var userResponse types.BirthdayUserResponse
+	result := db.DB.Model(&user).First(&userResponse, id)
+	return userResponse, result.Error
 }
 
 func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) error {
@@ -94,16 +119,16 @@ func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) e
 	return nil
 }
 
-func (db DataBase) GetBirthdays(userThatSubscibesId int) ([]types.BirthdayUser, error) {
+func (db DataBase) GetBirthdays(userThatSubscibesId int, r *http.Request) ([]types.BirthdayUserResponse, error) {
 	var userThatSubscribes types.BirthdayUser
-	var subscriptions []types.BirthdayUser
+	var subscriptions []types.BirthdayUserResponse
 
 	err := db.DB.First(&userThatSubscribes, userThatSubscibesId).Error
 	if err != nil {
 		return nil, err
 	}
 
-	db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
+	db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
 
 	return subscriptions, nil
 }
