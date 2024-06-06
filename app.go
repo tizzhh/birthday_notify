@@ -288,24 +288,46 @@ func (na *NotifyApp) unsubscribeFromUserHandler(w http.ResponseWriter, r *http.R
 	respondWithJSON(w, http.StatusCreated, "unsubscribed from user's birthday with id "+vars["id"])
 }
 
-func (na *NotifyApp) getBirthdaysHandler(w http.ResponseWriter, r *http.Request) {
+func birthdaysSubscriptionsBase(w http.ResponseWriter, r *http.Request) (int, error) {
 	claims, ok := r.Context().Value(claimsKey).(jwt.MapClaims)
 	if !ok {
 		respondWithError(w, http.StatusInternalServerError, errors.New("missing claims in r.Context"))
-		return
+		return 0, errors.New("")
 	}
 	subject, ok := claims["sub"]
 	if !ok {
 		respondWithError(w, http.StatusInternalServerError, errors.New("missing subject in JWT map claims"))
-		return
+		return 0, errors.New("")
 	}
 	idFromSubject, ok := subject.(float64)
 	if !ok {
 		respondWithError(w, http.StatusInternalServerError, errors.New("subject is not a number"))
-		return
+		return 0, errors.New("")
 	}
 	userId := int(idFromSubject)
+	return userId, nil
+}
+
+func (na *NotifyApp) getBirthdaysHandler(w http.ResponseWriter, r *http.Request) {
+	userId, err := birthdaysSubscriptionsBase(w, r)
+	if err != nil {
+		return
+	}
 	users, err := na.dbConnection.GetBirthdays(userId, r)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, users)
+}
+
+func (na *NotifyApp) getSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {
+	userId, err := birthdaysSubscriptionsBase(w, r)
+	if err != nil {
+		return
+	}
+	users, err := na.dbConnection.GetSubscriptions(userId, r)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err)
 		return

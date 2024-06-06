@@ -112,7 +112,10 @@ func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) e
 		return err
 	}
 
-	db.DB.Model(&userThatSubscribes).Where(THROUGH_MANY_TO_MANY_TABLE_SECOND_COLUMN+" = ?", userToSubscribeid).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
+	stringErr := db.DB.Model(&userThatSubscribes).Where(THROUGH_MANY_TO_MANY_TABLE_SECOND_COLUMN+" = ?", userToSubscribeid).Association(MANY_TO_MANY_FIELD).Find(&subscriptions).Error()
+	if stringErr != "" {
+		return errors.New(stringErr)
+	}
 	if len(subscriptions) > 0 {
 		return errors.New("already subscribed")
 	}
@@ -123,7 +126,10 @@ func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) e
 		return err
 	}
 
-	db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Append(&userToSubscribe)
+	stringErr = db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Append(&userToSubscribe).Error()
+	if stringErr != "" {
+		return errors.New(stringErr)
+	}
 
 	return nil
 }
@@ -142,7 +148,10 @@ func (db DataBase) UnSubscribeFromUser(userThatSubscibesId, userToSubscribeid in
 		return err
 	}
 
-	db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Delete(userToSubscribe, userThatSubscribes)
+	stringErr := db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Delete(userToSubscribe, userThatSubscribes).Error()
+	if stringErr != "" {
+		return errors.New(stringErr)
+	}
 
 	return nil
 }
@@ -156,8 +165,30 @@ func (db DataBase) GetBirthdays(userThatSubscibesId int, r *http.Request) ([]typ
 		return nil, err
 	}
 
-	db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
+	currentTime := time.Now()
+	curentMonth := currentTime.Month()
+	currentDay := currentTime.Day()
 
+	stringErr := db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Where("EXTRACT(MONTH FROM birthday) = ? AND EXTRACT(DAY FROM birthday) = ?", curentMonth, currentDay).Association(MANY_TO_MANY_FIELD).Find(&subscriptions).Error()
+	if stringErr != "" {
+		return nil, errors.New(stringErr)
+	}
+	return subscriptions, nil
+}
+
+func (db DataBase) GetSubscriptions(userThatSubscibesId int, r *http.Request) ([]types.BirthdayUserResponse, error) {
+	var userThatSubscribes types.BirthdayUser
+	var subscriptions []types.BirthdayUserResponse
+
+	err := db.DB.First(&userThatSubscribes, userThatSubscibesId).Error
+	if err != nil {
+		return nil, err
+	}
+
+	stringErr := db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Association(MANY_TO_MANY_FIELD).Find(&subscriptions).Error()
+	if stringErr != "" {
+		return nil, errors.New(stringErr)
+	}
 	return subscriptions, nil
 }
 

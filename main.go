@@ -42,9 +42,15 @@ func Initialize() (NotifyApp, error) {
 	if err != nil {
 		return NotifyApp{}, fmt.Errorf("failed to connect to a database: %w", err)
 	}
-	na.dbConnection.DB.AutoMigrate(&types.BirthdayUser{})
+	err = na.dbConnection.DB.AutoMigrate(&types.BirthdayUser{})
+	if err != nil {
+		return NotifyApp{}, err
+	}
 	na.Router = mux.NewRouter()
-	na.dbConnection.CreateAdminUser(ADMIN_USER_FIRST_NAME, ADMIN_USER_LAST_NAME, ADMIN_USER_EMAIL, ADMIN_USER_BIRTHDAY, ADMIN_USER_PASSWORD)
+	err = na.dbConnection.CreateAdminUser(ADMIN_USER_FIRST_NAME, ADMIN_USER_LAST_NAME, ADMIN_USER_EMAIL, ADMIN_USER_BIRTHDAY, ADMIN_USER_PASSWORD)
+	if err != nil {
+		return NotifyApp{}, err
+	}
 	return na, nil
 }
 
@@ -56,6 +62,7 @@ func (na *NotifyApp) setupRoutes() {
 	na.Router.Handle("/api/users/{id:[0-9]+}/subscribe", authorizationRequired(http.HandlerFunc(na.subscribeToUserHandler))).Methods("POST")
 	na.Router.Handle("/api/users/{id:[0-9]+}/unsubscribe", authorizationRequired(http.HandlerFunc(na.unsubscribeFromUserHandler))).Methods("POST")
 	na.Router.Handle("/api/birthdays", authorizationRequired(http.HandlerFunc(na.getBirthdaysHandler))).Methods("GET")
+	na.Router.Handle("/api/subscriptions", authorizationRequired(http.HandlerFunc(na.getSubscriptionsHandler))).Methods("GET")
 	na.Router.HandleFunc("/api/auth/token", na.getTokenhandler).Methods("POST")
 }
 
