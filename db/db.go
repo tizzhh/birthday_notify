@@ -10,15 +10,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	DB_USER_ENV                string = "DB_USER"
-	DB_PASS_ENV                string = "DB_PASS"
-	DB_HOST_ENV                string = "DB_HOST"
-	DB_NAME_ENV                string = "DB_NAME"
-	DB_PORT_ENV                string = "DB_PORT"
-	DB_CONNECTION_URL_TEMPLATE string = "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable"
-)
-
 type DataBase struct {
 	DB *gorm.DB
 }
@@ -36,22 +27,36 @@ func ConnectToDb(dbHost, dbUser, dbPass, dbName, dbPort, connectionUrl string) (
 	return DataBase{DB: db}, nil
 }
 
-func (db DataBase) GetUsers() ([]types.User, error) {
-
-	return nil, nil
+func (db DataBase) GetUsers() ([]types.BirthdayUser, error) {
+	var users []types.BirthdayUser
+	results := db.DB.Find(&users)
+	return users, results.Error
 }
 
-func (db DataBase) GetUser(id int) (types.User, error) {
+func (db DataBase) CreateUser(user types.BirthdayUser) error {
+	result := db.DB.Create(&user)
+	return result.Error
+}
 
-	return types.User{}, nil
+func (db DataBase) GetUser(id int) (types.BirthdayUser, error) {
+	var user types.BirthdayUser
+	result := db.DB.First(&user, id)
+	return user, result.Error
 }
 
 func (db DataBase) SubscribeToUser(id int) error {
-
+	var user types.BirthdayUser
+	result := db.DB.First(&user, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	user.IsSubscribed = true
+	db.DB.Save(&user)
 	return nil
 }
 
-func (db DataBase) GetBirthdays() ([]types.User, error) {
-
-	return nil, nil
+func (db DataBase) GetBirthdays() ([]types.BirthdayUser, error) {
+	var users []types.BirthdayUser
+	results := db.DB.Where("is_subscribed = ?", "1").Find(&users)
+	return users, results.Error
 }
