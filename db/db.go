@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"birthday/types"
 
@@ -131,4 +132,46 @@ func (db DataBase) GetBirthdays(userThatSubscibesId int, r *http.Request) ([]typ
 	db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
 
 	return subscriptions, nil
+}
+
+func (db DataBase) CreateAdminUser(adminFirstName, adminLastName, adminEmail, adminBirthday, adminPassword string) error {
+	adminTime, err := time.Parse(time.RFC3339, os.Getenv(adminBirthday))
+	if err != nil {
+		return err
+	}
+	adminUser := types.BirthdayUser{
+		BirthdayUserRequest: types.BirthdayUserRequest{
+			Password: os.Getenv(adminPassword),
+			BirthdayUserBase: types.BirthdayUserBase{
+				FirstName: os.Getenv(adminFirstName),
+				LastName:  os.Getenv(adminLastName),
+				Email:     os.Getenv(adminEmail),
+				Birthday:  adminTime,
+			},
+		},
+	}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminUser.Password), 14)
+	if err != nil {
+		return err
+	}
+	adminUser.Password = string(hashedPassword)
+	result := db.DB.Create(&adminUser)
+	return result.Error
+}
+
+func (db DataBase) UpdateUser(id int, newUser types.BirthdayUser) error {
+	var oldUser types.BirthdayUser
+	err := db.DB.First(&oldUser, id).Error
+	if err != nil {
+		return err
+	}
+	fmt.Println(oldUser, newUser)
+	oldUser.FirstName = newUser.FirstName
+	oldUser.LastName = newUser.LastName
+	oldUser.Email = newUser.Email
+	oldUser.Birthday = newUser.Birthday
+	oldUser.Password = newUser.Password
+	fmt.Println(oldUser, newUser)
+	err = db.DB.Save(&oldUser).Error
+	return err
 }

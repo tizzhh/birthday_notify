@@ -157,8 +157,32 @@ func (na *NotifyApp) getUserHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	switch r.Method {
+	case http.MethodGet:
+		respondWithJSON(w, http.StatusOK, user)
+	case http.MethodPut:
+		var updatedUser types.BirthdayUserRequest
+		err := json.NewDecoder(r.Body).Decode(&updatedUser)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, err)
+			return
+		}
+		defer r.Body.Close()
 
-	respondWithJSON(w, http.StatusOK, user)
+		err = validateBirthdayUser(updatedUser)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		updatedBirthdayUser := types.BirthdayUser{BirthdayUserRequest: updatedUser}
+		err = na.dbConnection.UpdateUser(id, updatedBirthdayUser)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, err)
+			return
+		}
+	case http.MethodPatch:
+	}
 }
 
 func (na *NotifyApp) subscribeToUserHandler(w http.ResponseWriter, r *http.Request) {

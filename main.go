@@ -19,6 +19,11 @@ const (
 	DB_NAME_ENV                string = "POSTGRES_DB"
 	DB_PORT_ENV                string = "DB_PORT"
 	DB_CONNECTION_URL_TEMPLATE string = "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable"
+	ADMIN_USER_FIRST_NAME             = "ADMIN_USER_FIRST_NAME"
+	ADMIN_USER_LAST_NAME              = "ADMIN_USER_LAST_NAME"
+	ADMIN_USER_EMAIL                  = "ADMIN_USER_EMAIL"
+	ADMIN_USER_BIRTHDAY               = "ADMIN_USER_BIRTHDAY"
+	ADMIN_USER_PASSWORD               = "ADMIN_USER_PASSWORD"
 )
 
 type NotifyApp struct {
@@ -39,13 +44,14 @@ func Initialize() (NotifyApp, error) {
 	}
 	na.dbConnection.DB.AutoMigrate(&types.BirthdayUser{})
 	na.Router = mux.NewRouter()
+	na.dbConnection.CreateAdminUser(ADMIN_USER_FIRST_NAME, ADMIN_USER_LAST_NAME, ADMIN_USER_EMAIL, ADMIN_USER_BIRTHDAY, ADMIN_USER_PASSWORD)
 	return na, nil
 }
 
 func (na *NotifyApp) setupRoutes() {
 	na.Router.HandleFunc("/api/users", na.getUsersHandler).Methods("GET")
 	na.Router.HandleFunc("/api/users", na.createUsersHandler).Methods("POST")
-	na.Router.HandleFunc("/api/users/{id:[0-9]+}", na.getUserHandler).Methods("GET")
+	na.Router.HandleFunc("/api/users/{id:[0-9]+}", na.getUserHandler).Methods("GET", "PUT", "PATCH")
 	na.Router.Handle("/api/users/{id:[0-9]+}/subscribe", authorizationRequired(http.HandlerFunc(na.subscribeToUserHandler))).Methods("POST")
 	na.Router.Handle("/api/birthdays", authorizationRequired(http.HandlerFunc(na.getBirthdaysHandler))).Methods("GET")
 	na.Router.HandleFunc("/api/auth/token", na.getTokenhandler).Methods("POST")
