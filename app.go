@@ -4,13 +4,17 @@ import (
 	"birthday/types"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
+	"time"
 
 	"net/http"
 	"regexp"
 	"strconv"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -18,8 +22,27 @@ const (
 	emailRegex string = `^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`
 )
 
+var jwtSecretKey = []byte(os.Getenv("JWT_SECRET_KEY"))
+
 type ErrorResponse struct {
 	Err string `json:"error"`
+}
+
+func authorizationRequired(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString := r.Header.Get("Authorization")
+		if tokenString == "" {
+			respondWithError(w, http.StatusUnauthorized, errors.New("missing auth token"))
+			return
+		}
+		tokenString = tokenString[len("Bearer "):]
+		err := verifyToken(tokenString)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, err)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func validateBirthdayUser(user types.BirthdayUserRequest) error {
@@ -35,6 +58,9 @@ func validateBirthdayUser(user types.BirthdayUserRequest) error {
 	}
 	if user.Birthday.IsZero() {
 		validationErrors = append(validationErrors, "birthday field is required")
+	}
+	if user.Password == "" {
+		validationErrors = append(validationErrors, "password field is required")
 	}
 	if user.Email != "" {
 		re := regexp.MustCompile(emailRegex)
@@ -92,7 +118,7 @@ func (na *NotifyApp) createUsersHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, user)
+	respondWithJSON(w, http.StatusCreated, user)
 }
 
 func (na *NotifyApp) getUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -125,9 +151,11 @@ func (na *NotifyApp) subscribeToUserHandler(w http.ResponseWriter, r *http.Reque
 
 	err = na.dbConnection.SubscribeToUser(id)
 	if err != nil {
-		switch err {
-		case gorm.ErrRecordNotFound:
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
 			respondWithError(w, http.StatusNotFound, err)
+		case err.Error() == "already subscribed":
+			respondWithJSON(w, http.StatusOK, "already subscribed to user's birthday with id "+vars["id"])
 		default:
 			respondWithError(w, http.StatusInternalServerError, err)
 		}
@@ -145,4 +173,53 @@ func (na *NotifyApp) getBirthdaysHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondWithJSON(w, http.StatusOK, users)
+}
+
+func (na *NotifyApp) getTokenhandler(w http.ResponseWriter, r *http.Request) {
+	var loginData types.LoginRequest
+	err := json.NewDecoder(r.Body).Decode(&loginData)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err)
+		return
+	}
+	user, err := na.dbConnection.GetUserByEmail(loginData.Email)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, err)
+		return
+	}
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginData.Password))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, errors.New("incorrect password"))
+		return
+	}
+
+	payload := jwt.MapClaims{
+		"sub": user.Email,
+		"exp": time.Now().Add(time.Hour * 24).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, payload)
+	t, err := token.SignedString(jwtSecretKey)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, errors.New("JWT token signing"))
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, types.Token{Token: t})
+}
+
+func verifyToken(tokenString string) error {
+	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+		return jwtSecretKey, nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if !token.Valid {
+		return errors.New("invalid token")
+	}
+
+	return nil
 }

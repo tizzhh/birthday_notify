@@ -1,13 +1,17 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"birthday/types"
+
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type DataBase struct {
@@ -34,8 +38,24 @@ func (db DataBase) GetUsers() ([]types.BirthdayUser, error) {
 }
 
 func (db DataBase) CreateUser(user types.BirthdayUser) error {
+	var userCheck types.BirthdayUser
+	emailCheck := db.DB.Where("email = ?", user.Email).First(&userCheck)
+	if emailCheck.RowsAffected > 0 {
+		return errors.New("user with this email already exists")
+	}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 14)
+	if err != nil {
+		return err
+	}
+	user.Password = string(hashedPassword)
 	result := db.DB.Create(&user)
 	return result.Error
+}
+
+func (db DataBase) GetUserByEmail(email string) (types.BirthdayUser, error) {
+	var userCheck types.BirthdayUser
+	emailCheck := db.DB.Where("email = ?", email).First(&userCheck)
+	return userCheck, emailCheck.Error
 }
 
 func (db DataBase) GetUser(id int) (types.BirthdayUser, error) {
@@ -47,6 +67,9 @@ func (db DataBase) GetUser(id int) (types.BirthdayUser, error) {
 func (db DataBase) SubscribeToUser(id int) error {
 	var user types.BirthdayUser
 	result := db.DB.First(&user, id)
+	if user.IsSubscribed {
+		return errors.New("already subscribed")
+	}
 	if result.Error != nil {
 		return result.Error
 	}
