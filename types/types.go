@@ -12,7 +12,7 @@ type BirthdayUserRequest struct {
 }
 
 type BirthdayUser struct {
-	ID            uint            `json:"id" gorm:"primaryKey"`
+	ID            int             `json:"id" gorm:"primaryKey"`
 	Subscriptions []*BirthdayUser `json:"-" gorm:"many2many:user_subscriptions"`
 	BirthdayUserRequest
 }

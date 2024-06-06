@@ -2,6 +2,7 @@ package main
 
 import (
 	"birthday/types"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -16,6 +17,13 @@ import (
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+)
+
+type userKey int
+
+const (
+	_ userKey = iota
+	claimsKey
 )
 
 const (
@@ -36,11 +44,14 @@ func authorizationRequired(h http.Handler) http.Handler {
 			return
 		}
 		tokenString = tokenString[len("Bearer "):]
-		err := verifyToken(tokenString)
+		claims, err := verifyToken(tokenString)
 		if err != nil {
 			respondWithError(w, http.StatusUnauthorized, err)
 			return
 		}
+
+		ctx := context.WithValue(r.Context(), claimsKey, claims)
+		r = r.WithContext(ctx)
 		h.ServeHTTP(w, r)
 	})
 }
@@ -149,7 +160,25 @@ func (na *NotifyApp) subscribeToUserHandler(w http.ResponseWriter, r *http.Reque
 		respondWithError(w, http.StatusBadRequest, errors.New("invalid user id"))
 	}
 
-	err = na.dbConnection.SubscribeToUser(id)
+	claims := r.Context().Value(claimsKey).(jwt.MapClaims)
+	subject, ok := claims["sub"]
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("missing subject in JWT map claims"))
+		return
+	}
+	idFromSubject, ok := subject.(float64)
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("subject is not a number"))
+		return
+	}
+	userId := int(idFromSubject)
+
+	if userId == id {
+		respondWithError(w, http.StatusBadRequest, errors.New("cannot subscribe to oneself"))
+		return
+	}
+
+	err = na.dbConnection.SubscribeToUser(userId, id)
 	if err != nil {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
@@ -162,11 +191,13 @@ func (na *NotifyApp) subscribeToUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	respondWithJSON(w, http.StatusCreated, "Subscribed to user's birthday with id "+vars["id"])
+	respondWithJSON(w, http.StatusCreated, "subscribed to user's birthday with id "+vars["id"])
 }
 
 func (na *NotifyApp) getBirthdaysHandler(w http.ResponseWriter, r *http.Request) {
-	users, err := na.dbConnection.GetBirthdays()
+	claims := r.Context().Value(claimsKey).(jwt.MapClaims)
+	subject := claims["sub"].(float64)
+	users, err := na.dbConnection.GetBirthdays(int(subject))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err)
 		return
@@ -194,7 +225,7 @@ func (na *NotifyApp) getTokenhandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := jwt.MapClaims{
-		"sub": user.Email,
+		"sub": user.ID,
 		"exp": time.Now().Add(time.Hour * 24).Unix(),
 	}
 
@@ -208,18 +239,23 @@ func (na *NotifyApp) getTokenhandler(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusCreated, types.Token{Token: t})
 }
 
-func verifyToken(tokenString string) error {
+func verifyToken(tokenString string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		return jwtSecretKey, nil
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !token.Valid {
-		return errors.New("invalid token")
+		return nil, errors.New("invalid token")
 	}
 
-	return nil
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("invalid token claims")
+	}
+
+	return claims, nil
 }

@@ -14,6 +14,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	MANY_TO_MANY_FIELD                       string = "Subscriptions"
+	THROUGH_MANY_TO_MANY_TABLE_SECOND_COLUMN string = "subscription_id"
+)
+
 type DataBase struct {
 	DB *gorm.DB
 }
@@ -64,22 +69,41 @@ func (db DataBase) GetUser(id int) (types.BirthdayUser, error) {
 	return user, result.Error
 }
 
-func (db DataBase) SubscribeToUser(id int) error {
-	var user types.BirthdayUser
-	result := db.DB.First(&user, id)
-	if user.IsSubscribed {
+func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) error {
+	var userThatSubscribes types.BirthdayUser
+	var subscriptions []types.BirthdayUser
+
+	err := db.DB.First(&userThatSubscribes, userThatSubscibesId).Error
+	if err != nil {
+		return err
+	}
+
+	db.DB.Model(&userThatSubscribes).Where(THROUGH_MANY_TO_MANY_TABLE_SECOND_COLUMN+" = ?", userToSubscribeid).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
+	if len(subscriptions) > 0 {
 		return errors.New("already subscribed")
 	}
-	if result.Error != nil {
-		return result.Error
+
+	var userToSubscribe types.BirthdayUser
+	err = db.DB.First(&userToSubscribe, userToSubscribeid).Error
+	if err != nil {
+		return err
 	}
-	user.IsSubscribed = true
-	db.DB.Save(&user)
+
+	db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Append(&userToSubscribe)
+
 	return nil
 }
 
-func (db DataBase) GetBirthdays() ([]types.BirthdayUser, error) {
-	var users []types.BirthdayUser
-	results := db.DB.Where("is_subscribed = ?", "1").Find(&users)
-	return users, results.Error
+func (db DataBase) GetBirthdays(userThatSubscibesId int) ([]types.BirthdayUser, error) {
+	var userThatSubscribes types.BirthdayUser
+	var subscriptions []types.BirthdayUser
+
+	err := db.DB.First(&userThatSubscribes, userThatSubscibesId).Error
+	if err != nil {
+		return nil, err
+	}
+
+	db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
+
+	return subscriptions, nil
 }
