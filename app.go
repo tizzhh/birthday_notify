@@ -389,3 +389,7 @@ func verifyToken(tokenString string) (jwt.MapClaims, error) {
 
 	return claims, nil
 }
+
+func livenessCheckHandler(w http.ResponseWriter, r *http.Request) {
+	respondWithJSON(w, http.StatusOK, "Hey! I'm alive!")
+}

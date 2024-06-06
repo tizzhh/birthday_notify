@@ -64,6 +64,7 @@ func (na *NotifyApp) setupRoutes() {
 	na.Router.Handle("/api/birthdays", authorizationRequired(http.HandlerFunc(na.getBirthdaysHandler))).Methods("GET")
 	na.Router.Handle("/api/subscriptions", authorizationRequired(http.HandlerFunc(na.getSubscriptionsHandler))).Methods("GET")
 	na.Router.HandleFunc("/api/auth/token", na.getTokenhandler).Methods("POST")
+	na.Router.HandleFunc("/api/liveness", livenessCheckHandler).Methods("GET")
 }
 
 func main() {
