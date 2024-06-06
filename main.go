@@ -50,9 +50,11 @@ func Initialize() (NotifyApp, error) {
 
 func (na *NotifyApp) setupRoutes() {
 	na.Router.HandleFunc("/api/users", na.getUsersHandler).Methods("GET")
-	na.Router.HandleFunc("/api/users", na.createUsersHandler).Methods("POST")
-	na.Router.HandleFunc("/api/users/{id:[0-9]+}", na.getUserHandler).Methods("GET", "PUT", "PATCH")
+	na.Router.Handle("/api/users", authorizationRequired(http.HandlerFunc(na.createUsersHandler))).Methods("POST")
+	na.Router.Handle("/api/users/{id:[0-9]+}", authorizationRequired(http.HandlerFunc(na.getUserHandler))).Methods("PUT", "PATCH")
+	na.Router.HandleFunc("/api/users/{id:[0-9]+}", na.getUserHandler).Methods("GET")
 	na.Router.Handle("/api/users/{id:[0-9]+}/subscribe", authorizationRequired(http.HandlerFunc(na.subscribeToUserHandler))).Methods("POST")
+	na.Router.Handle("/api/users/{id:[0-9]+}/unsubscribe", authorizationRequired(http.HandlerFunc(na.unsubscribeFromUserHandler))).Methods("POST")
 	na.Router.Handle("/api/birthdays", authorizationRequired(http.HandlerFunc(na.getBirthdaysHandler))).Methods("GET")
 	na.Router.HandleFunc("/api/auth/token", na.getTokenhandler).Methods("POST")
 }

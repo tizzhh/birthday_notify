@@ -67,19 +67,27 @@ func (db DataBase) GetUsers(r *http.Request) ([]types.BirthdayUserResponse, erro
 	return usersResponse, results.Error
 }
 
-func (db DataBase) CreateUser(user types.BirthdayUser) error {
+func (db DataBase) CreateUser(user types.BirthdayUser) (types.BirthdayUserResponse, error) {
 	var userCheck types.BirthdayUser
 	emailCheck := db.DB.Where("email = ?", user.Email).First(&userCheck)
 	if emailCheck.RowsAffected > 0 {
-		return errors.New("user with this email already exists")
+		return types.BirthdayUserResponse{}, errors.New("user with this email already exists")
 	}
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 14)
 	if err != nil {
-		return err
+		return types.BirthdayUserResponse{}, err
 	}
 	user.Password = string(hashedPassword)
 	result := db.DB.Create(&user)
-	return result.Error
+	return types.BirthdayUserResponse{
+		ID: user.ID,
+		BirthdayUserBase: types.BirthdayUserBase{
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			Email:     user.Email,
+			Birthday:  user.Birthday,
+		},
+	}, result.Error
 }
 
 func (db DataBase) GetUserByEmail(email string) (types.BirthdayUser, error) {
@@ -120,6 +128,25 @@ func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) e
 	return nil
 }
 
+func (db DataBase) UnSubscribeFromUser(userThatSubscibesId, userToSubscribeid int) error {
+	var userThatSubscribes types.BirthdayUser
+
+	err := db.DB.First(&userThatSubscribes, userThatSubscibesId).Error
+	if err != nil {
+		return err
+	}
+
+	var userToSubscribe types.BirthdayUser
+	err = db.DB.First(&userToSubscribe, userToSubscribeid).Error
+	if err != nil {
+		return err
+	}
+
+	db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Delete(userToSubscribe, userThatSubscribes)
+
+	return nil
+}
+
 func (db DataBase) GetBirthdays(userThatSubscibesId int, r *http.Request) ([]types.BirthdayUserResponse, error) {
 	var userThatSubscribes types.BirthdayUser
 	var subscriptions []types.BirthdayUserResponse
@@ -135,6 +162,10 @@ func (db DataBase) GetBirthdays(userThatSubscibesId int, r *http.Request) ([]typ
 }
 
 func (db DataBase) CreateAdminUser(adminFirstName, adminLastName, adminEmail, adminBirthday, adminPassword string) error {
+	_, err := db.GetUserByEmail(os.Getenv(adminEmail))
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
 	adminTime, err := time.Parse(time.RFC3339, os.Getenv(adminBirthday))
 	if err != nil {
 		return err
@@ -159,19 +190,56 @@ func (db DataBase) CreateAdminUser(adminFirstName, adminLastName, adminEmail, ad
 	return result.Error
 }
 
-func (db DataBase) UpdateUser(id int, newUser types.BirthdayUser) error {
+func (db DataBase) UpdateUser(id int, newUser types.BirthdayUserRequest) (types.BirthdayUserResponse, error) {
 	var oldUser types.BirthdayUser
 	err := db.DB.First(&oldUser, id).Error
 	if err != nil {
-		return err
+		return types.BirthdayUserResponse{}, err
 	}
-	fmt.Println(oldUser, newUser)
 	oldUser.FirstName = newUser.FirstName
 	oldUser.LastName = newUser.LastName
 	oldUser.Email = newUser.Email
 	oldUser.Birthday = newUser.Birthday
-	oldUser.Password = newUser.Password
-	fmt.Println(oldUser, newUser)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newUser.Password), 14)
+	if err != nil {
+		return types.BirthdayUserResponse{}, err
+	}
+	oldUser.Password = string(hashedPassword)
 	err = db.DB.Save(&oldUser).Error
-	return err
+	return types.BirthdayUserResponse{
+		ID: oldUser.ID,
+		BirthdayUserBase: types.BirthdayUserBase{
+			FirstName: oldUser.FirstName,
+			LastName:  oldUser.LastName,
+			Email:     oldUser.Email,
+			Birthday:  oldUser.Birthday,
+		},
+	}, err
+}
+
+func (db DataBase) PatchUser(id int, newUser types.BirthdayUserRequest) (types.BirthdayUserResponse, error) {
+	var oldUser types.BirthdayUser
+	err := db.DB.First(&oldUser, id).Error
+	if err != nil {
+		return types.BirthdayUserResponse{}, err
+	}
+	pass := newUser.Password
+	var hashedPassword []byte
+	if pass != "" {
+		hashedPassword, err = bcrypt.GenerateFromPassword([]byte(newUser.Password), 14)
+		if err != nil {
+			return types.BirthdayUserResponse{}, err
+		}
+	}
+	newUser.Password = string(hashedPassword)
+	err = db.DB.Model(&oldUser).Updates(&newUser).Error
+	return types.BirthdayUserResponse{
+		ID: oldUser.ID,
+		BirthdayUserBase: types.BirthdayUserBase{
+			FirstName: oldUser.FirstName,
+			LastName:  oldUser.LastName,
+			Email:     oldUser.Email,
+			Birthday:  oldUser.Birthday,
+		},
+	}, err
 }

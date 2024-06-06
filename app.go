@@ -122,22 +122,71 @@ func (na *NotifyApp) createUsersHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	birthdayUser := types.BirthdayUser{BirthdayUserRequest: user}
-	err = na.dbConnection.CreateUser(birthdayUser)
+	createdUser, err := na.dbConnection.CreateUser(birthdayUser)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	userResponse := types.BirthdayUserResponse{
-		ID: birthdayUser.ID,
-		BirthdayUserBase: types.BirthdayUserBase{
-			FirstName: birthdayUser.FirstName,
-			LastName:  birthdayUser.LastName,
-			Email:     birthdayUser.Email,
-			Birthday:  birthdayUser.Birthday,
-		},
+	respondWithJSON(w, http.StatusCreated, createdUser)
+}
+
+func (na *NotifyApp) putPatchUserHandle(w http.ResponseWriter, r *http.Request, user types.BirthdayUserResponse, id int) {
+	var updatedUser types.BirthdayUserRequest
+	err := json.NewDecoder(r.Body).Decode(&updatedUser)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err)
+		return
 	}
-	respondWithJSON(w, http.StatusCreated, userResponse)
+	defer r.Body.Close()
+
+	if r.Method == http.MethodPut {
+		err = validateBirthdayUser(updatedUser)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	claims, ok := r.Context().Value(claimsKey).(jwt.MapClaims)
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("missing claims in r.Context. The token may be outdated"))
+		return
+	}
+	subject, ok := claims["sub"]
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("missing subject in JWT map claims. The token may be outdated"))
+		return
+	}
+	idFromSubject, ok := subject.(float64)
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("subject is not a number"))
+		return
+	}
+	userId := int(idFromSubject)
+
+	if userId != user.ID {
+		respondWithError(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+
+	if r.Method == http.MethodPut {
+		updatedUser, err := na.dbConnection.UpdateUser(id, updatedUser)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, err)
+			return
+		}
+		respondWithJSON(w, http.StatusCreated, updatedUser)
+		return
+	} else if r.Method == http.MethodPatch {
+		patchedUser, err := na.dbConnection.PatchUser(id, updatedUser)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, err)
+			return
+		}
+		respondWithJSON(w, http.StatusOK, patchedUser)
+		return
+	}
 }
 
 func (na *NotifyApp) getUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -157,56 +206,48 @@ func (na *NotifyApp) getUserHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	switch r.Method {
-	case http.MethodGet:
-		respondWithJSON(w, http.StatusOK, user)
-	case http.MethodPut:
-		var updatedUser types.BirthdayUserRequest
-		err := json.NewDecoder(r.Body).Decode(&updatedUser)
-		if err != nil {
-			respondWithError(w, http.StatusBadRequest, err)
-			return
-		}
-		defer r.Body.Close()
-
-		err = validateBirthdayUser(updatedUser)
-		if err != nil {
-			respondWithError(w, http.StatusBadRequest, err)
-			return
-		}
-
-		updatedBirthdayUser := types.BirthdayUser{BirthdayUserRequest: updatedUser}
-		err = na.dbConnection.UpdateUser(id, updatedBirthdayUser)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err)
-			return
-		}
-	case http.MethodPatch:
+	if r.Method == http.MethodPut || r.Method == http.MethodPatch {
+		na.putPatchUserHandle(w, r, user, id)
+		return
 	}
+	respondWithJSON(w, http.StatusOK, user)
 }
 
-func (na *NotifyApp) subscribeToUserHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
+func subscribeUnsubscribeBase(w http.ResponseWriter, r *http.Request, vars map[string]string) (int, int, error) {
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, errors.New("invalid user id"))
 	}
 
-	claims := r.Context().Value(claimsKey).(jwt.MapClaims)
+	claims, ok := r.Context().Value(claimsKey).(jwt.MapClaims)
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("missing claims in r.Context"))
+		return 0, 0, errors.New("")
+	}
 	subject, ok := claims["sub"]
 	if !ok {
 		respondWithError(w, http.StatusInternalServerError, errors.New("missing subject in JWT map claims"))
-		return
+		return 0, 0, errors.New("")
 	}
 	idFromSubject, ok := subject.(float64)
 	if !ok {
 		respondWithError(w, http.StatusInternalServerError, errors.New("subject is not a number"))
-		return
+		return 0, 0, errors.New("")
 	}
 	userId := int(idFromSubject)
 
 	if userId == id {
 		respondWithError(w, http.StatusBadRequest, errors.New("cannot subscribe to oneself"))
+		return 0, 0, errors.New("")
+	}
+
+	return userId, id, nil
+}
+
+func (na *NotifyApp) subscribeToUserHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userId, id, err := subscribeUnsubscribeBase(w, r, vars)
+	if err != nil {
 		return
 	}
 
@@ -226,10 +267,45 @@ func (na *NotifyApp) subscribeToUserHandler(w http.ResponseWriter, r *http.Reque
 	respondWithJSON(w, http.StatusCreated, "subscribed to user's birthday with id "+vars["id"])
 }
 
+func (na *NotifyApp) unsubscribeFromUserHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userId, id, err := subscribeUnsubscribeBase(w, r, vars)
+	if err != nil {
+		return
+	}
+
+	err = na.dbConnection.UnSubscribeFromUser(userId, id)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			respondWithError(w, http.StatusNotFound, err)
+		default:
+			respondWithError(w, http.StatusInternalServerError, err)
+		}
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, "unsubscribed from user's birthday with id "+vars["id"])
+}
+
 func (na *NotifyApp) getBirthdaysHandler(w http.ResponseWriter, r *http.Request) {
-	claims := r.Context().Value(claimsKey).(jwt.MapClaims)
-	subject := claims["sub"].(float64)
-	users, err := na.dbConnection.GetBirthdays(int(subject), r)
+	claims, ok := r.Context().Value(claimsKey).(jwt.MapClaims)
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("missing claims in r.Context"))
+		return
+	}
+	subject, ok := claims["sub"]
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("missing subject in JWT map claims"))
+		return
+	}
+	idFromSubject, ok := subject.(float64)
+	if !ok {
+		respondWithError(w, http.StatusInternalServerError, errors.New("subject is not a number"))
+		return
+	}
+	userId := int(idFromSubject)
+	users, err := na.dbConnection.GetBirthdays(userId, r)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err)
 		return
