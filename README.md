@@ -9,7 +9,8 @@ birthday_notify - сервис для отслеживания дней рожд
 #### Для запуска необходимо следующее:
 - установленный docker
 - ```.env``` файл следующего формата:
-```POSTGRES_USER=birthday_user
+```
+POSTGRES_USER=birthday_user
 POSTGRES_PASSWORD=1234
 POSTGRES_DB=birthday
 DB_HOST=localhost
@@ -47,7 +48,7 @@ Detailed documentation can be found on /api/docs
 #### Requirements for running:
 - Installed Docker
 - A `.env` file with the following format:
-```plaintext
+```
 POSTGRES_USER=birthday_user
 POSTGRES_PASSWORD=1234
 POSTGRES_DB=birthday
