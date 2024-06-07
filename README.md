@@ -4,6 +4,8 @@ English version of this README can be found below.
 
 birthday_notify - сервис для отслеживания дней рождений пользователей.
 
+Подробную документацию можно найти на /api/docs
+
 #### Для запуска необходимо следующее:
 - установленный docker
 - ```.env``` файл следующего формата:
@@ -29,7 +31,18 @@ JWT_SECRET_KEY=secret-key
 - POST /api/auth/token *Получить токен для пользователя*
 - GET /api/liveness *liveness-check сервиса*
 
+Доступны следующие поля к теле запроса:
+```
+    "firstName": string,
+    "lastName": string,
+    "email": string в формате email,
+    "birthday": string в формате "2002-05-16T00:00:00Z",
+    "password": string
+```
+
 birthday_notify - a service for tracking users' birthdays.
+
+Detailed documentation can be found on /api/docs
 
 #### Requirements for running:
 - Installed Docker
@@ -56,3 +69,12 @@ Available endpoints in the service:
 - GET /api/subscriptions *Get a list of users the current user is subscribed to (token required)*
 - POST /api/auth/token *Get a token for a user*
 - GET /api/liveness *Service liveness check*
+
+The following fields in the request body are available:
+```
+    "firstName": string,
+    "lastName": string,
+    "email": string in email format,
+    "birthday": string in "2002-05-16T00:00:00Z" format,
+    "password": string
+```

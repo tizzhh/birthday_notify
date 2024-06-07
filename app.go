@@ -17,6 +17,8 @@ import (
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+
+	_ "birthday/docs"
 )
 
 type userKey int
@@ -349,7 +351,11 @@ func (na *NotifyApp) getTokenhandler(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := na.dbConnection.GetUserByEmail(loginData.Email)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			respondWithError(w, http.StatusNotFound, errors.New("User not found"))
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginData.Password))

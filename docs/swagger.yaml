@@ -1,0 +1,380 @@
+basePath: /api/
+definitions:
+  main.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  types.BirthdayUser:
+    properties:
+      birthday:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: integer
+      lastName:
+        type: string
+      password:
+        type: string
+    type: object
+  types.BirthdayUserRequest:
+    properties:
+      birthday:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      lastName:
+        type: string
+      password:
+        type: string
+    type: object
+  types.BirthdayUserResponse:
+    properties:
+      birthday:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: integer
+      lastName:
+        type: string
+    type: object
+  types.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  types.Token:
+    properties:
+      access_token:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a service that allows users to get birthday notifications in
+    JSON format.
+  title: Birthday notifier app
+  version: "1.0"
+paths:
+  /api/auth/token:
+    post:
+      consumes:
+      - application/json
+      description: Generate a JWT token for the user with valid login credentials
+      operationId: generate-token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: loginData
+        required: true
+        schema:
+          $ref: '#/definitions/types.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.Token'
+        "400":
+          description: incorrect password
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Generate JWT token
+  /api/birthdays:
+    get:
+      description: Retrieve a list of users' birthdays
+      operationId: get-birthdays
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/types.BirthdayUser'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get birthdays
+  /api/liveness:
+    get:
+      description: Check if the server is alive
+      operationId: liveness-check
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Hey! I'm alive!
+          schema:
+            type: string
+      summary: Liveness check
+  /api/subscriptions:
+    get:
+      description: Retrieve a list of users the current user is subscribed to
+      operationId: get-subscriptions
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/types.BirthdayUser'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get subscriptions
+  /api/users:
+    get:
+      description: Retrieve a list of all users
+      operationId: get-users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/types.BirthdayUser'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get all users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user with the given details
+      operationId: create-user
+      parameters:
+      - description: User data to create
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/types.BirthdayUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.BirthdayUser'
+        "400":
+          description: Invalid input or user with this email already exists
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Create a new user
+  /api/users/{id}:
+    get:
+      description: Retrieve a user by their ID
+      operationId: get-user-by-id
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.BirthdayUser'
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get, Put or Patch user by ID
+    patch:
+      description: Retrieve a user by their ID
+      operationId: get-user-by-id
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.BirthdayUser'
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get, Put or Patch user by ID
+    put:
+      description: Retrieve a user by their ID
+      operationId: get-user-by-id
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.BirthdayUser'
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get, Put or Patch user by ID
+  /api/users/{id}/subscribe:
+    post:
+      description: Subscribe to birthday notifications for a specific user by their
+        ID
+      operationId: subscribe-to-user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: already subscribed to user's birthday with id {id}
+          schema:
+            type: string
+        "201":
+          description: subscribed to user's birthday with id {id}
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Subscribe to a user's birthday notifications
+  /api/users/{id}/unsubscribe:
+    post:
+      description: Unsubscribe from birthday notifications for a specific user by
+        their ID
+      operationId: unsubscribe-from-user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: unsubscribed from user's birthday with id {id}
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Unsubscribe from a user's birthday notifications
+swagger: "2.0"

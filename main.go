@@ -9,6 +9,9 @@ import (
 	"birthday/types"
 
 	"github.com/gorilla/mux"
+	"github.com/mvrilo/go-redoc"
+
+	_ "birthday/docs"
 )
 
 const (
@@ -47,6 +50,14 @@ func Initialize() (NotifyApp, error) {
 		return NotifyApp{}, err
 	}
 	na.Router = mux.NewRouter()
+
+	doc := &redoc.Redoc{
+		Title:       "Birthday notifier API",
+		Description: "A service for tracking users' birthdays",
+		SpecFile:    "./docs/swagger.json",
+		SpecPath:    "/docs/swagger.json",
+	}
+	na.Router.PathPrefix("/docs").Handler(doc.Handler())
 	return na, nil
 }
 
