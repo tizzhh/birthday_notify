@@ -124,6 +124,10 @@ func (na *NotifyApp) createUsersHandler(w http.ResponseWriter, r *http.Request) 
 	birthdayUser := types.BirthdayUser{BirthdayUserRequest: user}
 	createdUser, err := na.dbConnection.CreateUser(birthdayUser)
 	if err != nil {
+		if err.Error() == "user with this email already exists" {
+			respondWithError(w, http.StatusBadRequest, err)
+			return
+		}
 		respondWithError(w, http.StatusInternalServerError, err)
 		return
 	}

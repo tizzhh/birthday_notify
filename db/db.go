@@ -63,8 +63,11 @@ func Paginate(r *http.Request) func(db *gorm.DB) *gorm.DB {
 func (db DataBase) GetUsers(r *http.Request) ([]types.BirthdayUserResponse, error) {
 	var user types.BirthdayUser
 	var usersResponse []types.BirthdayUserResponse
-	results := db.DB.Model(&user).Scopes(Paginate(r)).Find(&usersResponse)
-	return usersResponse, results.Error
+	err := db.DB.Model(&user).Scopes(Paginate(r)).Order("id ASC").Find(&usersResponse).Error
+	if err != nil {
+		return nil, err
+	}
+	return usersResponse, nil
 }
 
 func (db DataBase) CreateUser(user types.BirthdayUser) (types.BirthdayUserResponse, error) {
@@ -78,7 +81,10 @@ func (db DataBase) CreateUser(user types.BirthdayUser) (types.BirthdayUserRespon
 		return types.BirthdayUserResponse{}, err
 	}
 	user.Password = string(hashedPassword)
-	result := db.DB.Create(&user)
+	err = db.DB.Create(&user).Error
+	if err != nil {
+		return types.BirthdayUserResponse{}, err
+	}
 	return types.BirthdayUserResponse{
 		ID: user.ID,
 		BirthdayUserBase: types.BirthdayUserBase{
@@ -87,20 +93,26 @@ func (db DataBase) CreateUser(user types.BirthdayUser) (types.BirthdayUserRespon
 			Email:     user.Email,
 			Birthday:  user.Birthday,
 		},
-	}, result.Error
+	}, nil
 }
 
 func (db DataBase) GetUserByEmail(email string) (types.BirthdayUser, error) {
 	var userCheck types.BirthdayUser
-	emailCheck := db.DB.Where("email = ?", email).First(&userCheck)
-	return userCheck, emailCheck.Error
+	err := db.DB.Where("email = ?", email).First(&userCheck).Error
+	if err != nil {
+		return types.BirthdayUser{}, err
+	}
+	return userCheck, nil
 }
 
 func (db DataBase) GetUser(id int) (types.BirthdayUserResponse, error) {
 	var user types.BirthdayUser
 	var userResponse types.BirthdayUserResponse
-	result := db.DB.Model(&user).First(&userResponse, id)
-	return userResponse, result.Error
+	err := db.DB.Model(&user).First(&userResponse, id).Error
+	if err != nil {
+		return types.BirthdayUserResponse{}, err
+	}
+	return userResponse, nil
 }
 
 func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) error {
@@ -112,9 +124,9 @@ func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) e
 		return err
 	}
 
-	stringErr := db.DB.Model(&userThatSubscribes).Where(THROUGH_MANY_TO_MANY_TABLE_SECOND_COLUMN+" = ?", userToSubscribeid).Association(MANY_TO_MANY_FIELD).Find(&subscriptions).Error()
-	if stringErr != "" {
-		return errors.New(stringErr)
+	err = db.DB.Model(&userThatSubscribes).Where(THROUGH_MANY_TO_MANY_TABLE_SECOND_COLUMN+" = ?", userToSubscribeid).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
+	if err != nil {
+		return err
 	}
 	if len(subscriptions) > 0 {
 		return errors.New("already subscribed")
@@ -126,9 +138,9 @@ func (db DataBase) SubscribeToUser(userThatSubscibesId, userToSubscribeid int) e
 		return err
 	}
 
-	stringErr = db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Append(&userToSubscribe).Error()
-	if stringErr != "" {
-		return errors.New(stringErr)
+	err = db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Append(&userToSubscribe)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -148,9 +160,9 @@ func (db DataBase) UnSubscribeFromUser(userThatSubscibesId, userToSubscribeid in
 		return err
 	}
 
-	stringErr := db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Delete(userToSubscribe, userThatSubscribes).Error()
-	if stringErr != "" {
-		return errors.New(stringErr)
+	err = db.DB.Model(&userThatSubscribes).Association(MANY_TO_MANY_FIELD).Delete(userToSubscribe, userThatSubscribes)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -169,9 +181,9 @@ func (db DataBase) GetBirthdays(userThatSubscibesId int, r *http.Request) ([]typ
 	curentMonth := currentTime.Month()
 	currentDay := currentTime.Day()
 
-	stringErr := db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Where("EXTRACT(MONTH FROM birthday) = ? AND EXTRACT(DAY FROM birthday) = ?", curentMonth, currentDay).Association(MANY_TO_MANY_FIELD).Find(&subscriptions).Error()
-	if stringErr != "" {
-		return nil, errors.New(stringErr)
+	err = db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Where("EXTRACT(MONTH FROM birthday) = ? AND EXTRACT(DAY FROM birthday) = ?", curentMonth, currentDay).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
+	if err != nil {
+		return nil, err
 	}
 	return subscriptions, nil
 }
@@ -185,40 +197,11 @@ func (db DataBase) GetSubscriptions(userThatSubscibesId int, r *http.Request) ([
 		return nil, err
 	}
 
-	stringErr := db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Association(MANY_TO_MANY_FIELD).Find(&subscriptions).Error()
-	if stringErr != "" {
-		return nil, errors.New(stringErr)
+	err = db.DB.Model(&userThatSubscribes).Scopes(Paginate(r)).Association(MANY_TO_MANY_FIELD).Find(&subscriptions)
+	if err != nil {
+		return nil, err
 	}
 	return subscriptions, nil
-}
-
-func (db DataBase) CreateAdminUser(adminFirstName, adminLastName, adminEmail, adminBirthday, adminPassword string) error {
-	_, err := db.GetUserByEmail(os.Getenv(adminEmail))
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil
-	}
-	adminTime, err := time.Parse(time.RFC3339, os.Getenv(adminBirthday))
-	if err != nil {
-		return err
-	}
-	adminUser := types.BirthdayUser{
-		BirthdayUserRequest: types.BirthdayUserRequest{
-			Password: os.Getenv(adminPassword),
-			BirthdayUserBase: types.BirthdayUserBase{
-				FirstName: os.Getenv(adminFirstName),
-				LastName:  os.Getenv(adminLastName),
-				Email:     os.Getenv(adminEmail),
-				Birthday:  adminTime,
-			},
-		},
-	}
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminUser.Password), 14)
-	if err != nil {
-		return err
-	}
-	adminUser.Password = string(hashedPassword)
-	result := db.DB.Create(&adminUser)
-	return result.Error
 }
 
 func (db DataBase) UpdateUser(id int, newUser types.BirthdayUserRequest) (types.BirthdayUserResponse, error) {
@@ -237,6 +220,9 @@ func (db DataBase) UpdateUser(id int, newUser types.BirthdayUserRequest) (types.
 	}
 	oldUser.Password = string(hashedPassword)
 	err = db.DB.Save(&oldUser).Error
+	if err != nil {
+		return types.BirthdayUserResponse{}, err
+	}
 	return types.BirthdayUserResponse{
 		ID: oldUser.ID,
 		BirthdayUserBase: types.BirthdayUserBase{
@@ -245,7 +231,7 @@ func (db DataBase) UpdateUser(id int, newUser types.BirthdayUserRequest) (types.
 			Email:     oldUser.Email,
 			Birthday:  oldUser.Birthday,
 		},
-	}, err
+	}, nil
 }
 
 func (db DataBase) PatchUser(id int, newUser types.BirthdayUserRequest) (types.BirthdayUserResponse, error) {
@@ -264,6 +250,9 @@ func (db DataBase) PatchUser(id int, newUser types.BirthdayUserRequest) (types.B
 	}
 	newUser.Password = string(hashedPassword)
 	err = db.DB.Model(&oldUser).Updates(&newUser).Error
+	if err != nil {
+		return types.BirthdayUserResponse{}, err
+	}
 	return types.BirthdayUserResponse{
 		ID: oldUser.ID,
 		BirthdayUserBase: types.BirthdayUserBase{
@@ -272,5 +261,5 @@ func (db DataBase) PatchUser(id int, newUser types.BirthdayUserRequest) (types.B
 			Email:     oldUser.Email,
 			Birthday:  oldUser.Birthday,
 		},
-	}, err
+	}, nil
 }

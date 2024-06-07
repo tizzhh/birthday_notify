@@ -47,16 +47,12 @@ func Initialize() (NotifyApp, error) {
 		return NotifyApp{}, err
 	}
 	na.Router = mux.NewRouter()
-	err = na.dbConnection.CreateAdminUser(ADMIN_USER_FIRST_NAME, ADMIN_USER_LAST_NAME, ADMIN_USER_EMAIL, ADMIN_USER_BIRTHDAY, ADMIN_USER_PASSWORD)
-	if err != nil {
-		return NotifyApp{}, err
-	}
 	return na, nil
 }
 
 func (na *NotifyApp) setupRoutes() {
 	na.Router.HandleFunc("/api/users", na.getUsersHandler).Methods("GET")
-	na.Router.Handle("/api/users", authorizationRequired(http.HandlerFunc(na.createUsersHandler))).Methods("POST")
+	na.Router.HandleFunc("/api/users", na.createUsersHandler).Methods("POST")
 	na.Router.Handle("/api/users/{id:[0-9]+}", authorizationRequired(http.HandlerFunc(na.getUserHandler))).Methods("PUT", "PATCH")
 	na.Router.HandleFunc("/api/users/{id:[0-9]+}", na.getUserHandler).Methods("GET")
 	na.Router.Handle("/api/users/{id:[0-9]+}/subscribe", authorizationRequired(http.HandlerFunc(na.subscribeToUserHandler))).Methods("POST")

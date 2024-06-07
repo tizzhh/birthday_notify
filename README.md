@@ -13,17 +13,12 @@ POSTGRES_DB=birthday
 DB_HOST=localhost
 DB_PORT=5432
 JWT_SECRET_KEY=secret-key
-ADMIN_USER_FIRST_NAME="admin"
-ADMIN_USER_LAST_NAME="admin"
-ADMIN_USER_EMAIL="admin@gmail.com"
-ADMIN_USER_BIRTHDAY="2002-05-16T00:00:00Z"
-ADMIN_USER_PASSWORD="qwerty123"
 ```
 
 ####  Сервис запускается с помощью ```docker compose up```
 
 #### В сервисе доступны следующие эндпоинты:
-- GET /api/users *Получить список всех пользователей*
+- GET /api/users *Получить список всех пользователей (доступна пагинация через page и page_zize параметры запроса)*
 - POST /api/users *Создать пользователя (доступно по токену)*
 - PUT, PATCH /api/users/{id:[0-9]+} *Частично или полностью обновить пользователя (доступно по токену)*
 - GET /api/users/{id:[0-9]+} *Получить пользователя по его id*
@@ -33,8 +28,6 @@ ADMIN_USER_PASSWORD="qwerty123"
 - GET /api/subscriptions *Получить список пользователей, на которых подписан текущий пользователь (доступно по токену)*
 - POST /api/auth/token *Получить токен для пользователя*
 - GET /api/liveness *liveness-check сервиса*
-
-При запуске сервиса в первый раз в базе данных создается пользователь-админ, с помощью указанных в ```.env``` файле данных. Пользователь-админ может получить токен и создать дополнительных пользователей.
 
 birthday_notify - a service for tracking users' birthdays.
 
@@ -48,17 +41,12 @@ POSTGRES_DB=birthday
 DB_HOST=localhost
 DB_PORT=5432
 JWT_SECRET_KEY=secret-key
-ADMIN_USER_FIRST_NAME="admin"
-ADMIN_USER_LAST_NAME="admin"
-ADMIN_USER_EMAIL="admin@gmail.com"
-ADMIN_USER_BIRTHDAY="2002-05-16T00:00:00Z"
-ADMIN_USER_PASSWORD="qwerty123"
 ```
 
 #### To start the service, use: ```docker compose up```
 
 Available endpoints in the service:
-- GET /api/users *Retrieve a list of all users*
+- GET /api/users *Retrieve a list of all users (pagination is possible with page and page_size query parameters)*
 - POST /api/users *Create a user (token required)*
 - PUT, PATCH /api/users/{id:[0-9]+} *Partially or fully update a user (token required)*
 - GET /api/users/{id:[0-9]+} *Retrieve a user by their ID*
@@ -68,5 +56,3 @@ Available endpoints in the service:
 - GET /api/subscriptions *Get a list of users the current user is subscribed to (token required)*
 - POST /api/auth/token *Get a token for a user*
 - GET /api/liveness *Service liveness check*
-
-When the service is launched for the first time, an admin user is created in the database using the data specified in the ```.env``` file. The admin user can obtain a token and create additional users.
